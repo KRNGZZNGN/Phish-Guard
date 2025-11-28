@@ -134,7 +134,7 @@ except FileNotFoundError:
 #     email_clf, email_vect, url_clf = None, None, None
 
 # ---------------- GEMINI CONFIG ----------------
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBRyaP3ekJ7Wd9SqkQEY5yxXPygaZj6uXM")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCphx7jHpRTKqNMhsAc8mceOEHeSDaY4B0")
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
 def analyze_with_gemini(prompt_text):
