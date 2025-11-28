@@ -20,25 +20,16 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your_flask_secret_key')
 
 # ---------------- GOOGLE LOGIN (OAuth) ----------------
-# FIX 1: Remove OAUTHLIB_INSECURE_TRANSPORT as Render uses HTTPS
-# os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1' 
-
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 google_bp = make_google_blueprint(
-    # Client ID: Keep the client ID from your console
-    client_id=os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '864440386085-bfogmij6ipnvrghpsvf0ahfuuhdfnu9u.apps.googleusercontent.com'),
-    
-    # FIX 2: UPDATE the fallback client_secret to the new one you created: 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
-    client_secret=os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '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'), 
-
+    client_id=os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '974006956315-c1bnin4alqqqs6ot1ue5m1bk3r07qn3s.apps.googleusercontent.com'),
+    client_secret=os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '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'),
     scope=[
         "openid",
         "https://www.googleapis.com/auth/userinfo.profile",
         "https://www.googleapis.com/auth/userinfo.email"
     ],
-    
-    # FIX 3: Keeping 'redirect_url="/google_login"' means your Google Console URI MUST be 
-    # the full path: https://phish-guard-aamp.onrender.com/login/google_login
-    redirect_url="/google_login" 
+    redirect_url="/google_login"
 )
 app.register_blueprint(google_bp, url_prefix="/login")
 
@@ -131,27 +122,26 @@ except FileNotFoundError:
     print("⚠️ WARNING: Missing pickle model files.")
     email_clf, email_vect, url_clf = None, None, None
 
+# try:
+#     with open("modele.pkl", "rb") as f_model, \
+#          open("vectorizer.pkl", "rb") as f_vect:
+#         email_clf = pickle.load(f_model)
+#         email_vect = pickle.load(f_vect)
+#     with open("best_model_random_forest.pkl", "rb") as f_url_model:
+#         url_clf = pickle.load(f_url_model)
+# except FileNotFoundError:
+#     print("⚠️ WARNING: Missing pickle model files.")
+#     email_clf, email_vect, url_clf = None, None, None
+
 # ---------------- GEMINI CONFIG ----------------
-# NOTE: Removed hardcoded API key for security. Use environment variable only.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") 
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBRyaP3ekJ7Wd9SqkQEY5yxXPygaZj6uXM")
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
 def analyze_with_gemini(prompt_text):
-    if not GEMINI_API_KEY:
-        print("Gemini API key not configured.")
-        return "AI analysis unavailable (API key missing)."
-        
     try:
         payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
         response = requests.post(GEMINI_ENDPOINT, headers={"Content-Type": "application/json"}, json=payload)
         data = response.json()
-        
-        # Check for error in response
-        if response.status_code != 200 or "error" in data:
-            error_message = data.get("error", {}).get("message", "Unknown API error")
-            print(f"Gemini API error: {response.status_code} - {error_message}")
-            return f"AI analysis unavailable (API status {response.status_code})"
-
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
     except Exception as e:
         print(f"Gemini API error: {e}")
