@@ -178,6 +178,20 @@ def generate_reason(features):
     else:
         return {"summary": "URL appears safe.", "reasons": ["No suspicious patterns found."]}
 
+def generate_reason(features):
+    phishing_reasons, safe_reasons = [], []
+    if len(features) < 30:
+        return {"summary": "Feature extraction failed.", "reasons": ["Not enough data extracted."]}
+    if features[0] == 1: phishing_reasons.append("Uses an IP address instead of a domain.")
+    if features[1] == 1: phishing_reasons.append("URL length is suspiciously long.")
+    if features[5] == 1: phishing_reasons.append("Contains '@' symbol which can mislead users.")
+    if features[7] == 1: phishing_reasons.append("Contains multiple redirections using '//'.")
+    if features[13] == 1: phishing_reasons.append("Does not use HTTPS (unsafe connection).")
+    if phishing_reasons:
+        return {"summary": "Suspicious signs detected:", "reasons": phishing_reasons}
+    else:
+        return {"summary": "URL appears safe.", "reasons": ["No suspicious patterns found."]}
+
 # ---------------- ROUTES ----------------
 @app.route('/', methods=['GET', 'POST'])
 def home():
