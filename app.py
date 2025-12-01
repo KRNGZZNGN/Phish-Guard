@@ -134,6 +134,7 @@ except FileNotFoundError:
 #     email_clf, email_vect, url_clf = None, None, None
 
 # ---------------- GEMINI CONFIG ----------------
+# CRITICAL FIX: Removed the hardcoded key default and updated the model.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") 
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={GEMINI_API_KEY}"
 
@@ -164,20 +165,6 @@ def check_url_status(url, timeout=6):
         return {"reachable": False, "detail": str(e)}
 
 # ---------------- FEATURE REASONING ----------------
-def generate_reason(features):
-    phishing_reasons, safe_reasons = [], []
-    if len(features) < 30:
-        return {"summary": "Feature extraction failed.", "reasons": ["Not enough data extracted."]}
-    if features[0] == 1: phishing_reasons.append("Uses an IP address instead of a domain.")
-    if features[1] == 1: phishing_reasons.append("URL length is suspiciously long.")
-    if features[5] == 1: phishing_reasons.append("Contains '@' symbol which can mislead users.")
-    if features[7] == 1: phishing_reasons.append("Contains multiple redirections using '//'.")
-    if features[13] == 1: phishing_reasons.append("Does not use HTTPS (unsafe connection).")
-    if phishing_reasons:
-        return {"summary": "Suspicious signs detected:", "reasons": phishing_reasons}
-    else:
-        return {"summary": "URL appears safe.", "reasons": ["No suspicious patterns found."]}
-
 def generate_reason(features):
     phishing_reasons, safe_reasons = [], []
     if len(features) < 30:
