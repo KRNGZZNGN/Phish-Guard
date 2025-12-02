@@ -28,8 +28,9 @@ google_bp = make_google_blueprint(
         "openid",
         "https://www.googleapis.com/auth/userinfo.profile",
         "https://www.googleapis.com/auth/userinfo.email"
-    ],
-    redirect_url="/google_login"
+    ]
+    # **REMOVED: redirect_url="/google_login"**
+    # This allows it to default to the standard path: /login/google/authorized
 )
 app.register_blueprint(google_bp, url_prefix="/login")
 
