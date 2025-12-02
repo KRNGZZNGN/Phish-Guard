@@ -21,18 +21,30 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your_flask_secret_key')
 
 # ---------------- GOOGLE LOGIN (OAuth) ----------------
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
 google_bp = make_google_blueprint(
+
     client_id=os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '974006956315-c1bnin4alqqqs6ot1ue5m1bk3r07qn3s.apps.googleusercontent.com'),
+
     client_secret=os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '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'),
+
     scope=[
+
         "openid",
+
         "https://www.googleapis.com/auth/userinfo.profile",
+
         "https://www.googleapis.com/auth/userinfo.email"
-    ]
-    # **REMOVED: redirect_url="/google_login"**
-    # This allows it to default to the standard path: /login/google/authorized
+
+    ],
+
+    redirect_url="/google_login"
+
 )
+
 app.register_blueprint(google_bp, url_prefix="/login")
+
+
 
 # ---------------- DATABASE SETUP ----------------
 DB_FILE = 'users.db'
