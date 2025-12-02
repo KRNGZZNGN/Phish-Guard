@@ -45,7 +45,6 @@ google_bp = make_google_blueprint(
 app.register_blueprint(google_bp, url_prefix="/login")
 
 
-
 # ---------------- DATABASE SETUP ----------------
 DB_FILE = 'users.db'
 SECRET_PEPPER = os.environ.get('SECRET_PEPPER', 'my secret pepper')
@@ -131,7 +130,7 @@ def validate_login(email, password):
 # ---------------- LOAD ML MODELS ----------------
 try:
     with open("pickle/modele.pkl", "rb") as f_model, \
-         open("pickle/vectorizer.pkl", "rb") as f_vect:
+            open("pickle/vectorizer.pkl", "rb") as f_vect:
         email_clf = pickle.load(f_model)
         email_vect = pickle.load(f_vect)
     with open("pickle/model.pkl", "rb") as f_url_model:
@@ -140,20 +139,9 @@ except FileNotFoundError:
     print("⚠️ WARNING: Missing pickle model files.")
     email_clf, email_vect, url_clf = None, None, None
 
-# try:
-#     with open("modele.pkl", "rb") as f_model, \
-#          open("vectorizer.pkl", "rb") as f_vect:
-#         email_clf = pickle.load(f_model)
-#         email_vect = pickle.load(f_vect)
-#     with open("best_model_random_forest.pkl", "rb") as f_url_model:
-#         url_clf = pickle.load(f_url_model)
-# except FileNotFoundError:
-#     print("⚠️ WARNING: Missing pickle model files.")
-#     email_clf, email_vect, url_clf = None, None, None
-
 # ---------------- GEMINI CONFIG ----------------
 # CRITICAL FIX: Removed the hardcoded key default and updated the model.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") 
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")  
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={GEMINI_API_KEY}"
 
 def analyze_with_gemini(prompt_text):
@@ -161,6 +149,13 @@ def analyze_with_gemini(prompt_text):
         payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
         response = requests.post(GEMINI_ENDPOINT, headers={"Content-Type": "application/json"}, json=payload)
         data = response.json()
+        
+        # Check for error in response
+        if 'error' in data:
+            print(f"Gemini API returned error: {data['error']}")
+            return "AI analysis unavailable due to API error."
+        
+        # Safely extract text
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
     except Exception as e:
         print(f"Gemini API error: {e}")
@@ -211,79 +206,104 @@ def home():
 
     if request.method == 'POST':
         url = request.form.get('url', '').strip()
+        
         if url:
-            # --- Step 0: Check reachability ---
-            status = check_url_status(url)
-            if not status["reachable"]:
-                xx = 0.0
-                y_pred = -1
-                source = "Network"
+            # --- START: Custom Bypass for Known Safe URL ---
+            TARGET_URL = "https://phish-guard-aamp.onrender.com"
+            
+            if url == TARGET_URL:
+                xx = 1.0  # Confidence 100% (safe)
+                y_pred = 1 # Safe (1)
+                source = "Developer Override"
                 reason_info = {
-                    "summary": "⚠️ Site unreachable.",
-                    "reasons": [f"Detail: {status.get('detail', 'Unknown error')}"]
+                    "summary": "✅ Verified Safe Platform",
+                    "reasons": ["This URL is the official domain hosting this application and has been explicitly validated as safe."]
                 }
-                ai_report = f"This site could not be analyzed because it’s unreachable ({status.get('detail', 'unknown reason')})."
+                ai_report = "This URL is safe because it is the domain hosting this very application and has been verified by the developer to ensure a seamless experience."
+                # Skip all subsequent heavy analysis steps (reachability, GSB, ML, AI)
+                analysis_done = True
             else:
-                # --- Step 1: Google Safe Browsing ---
-                gsb_result = check_gsb(url)
-                if gsb_result['label'] == 'phishing':
-                    xx = 1.0
-                    y_pred = 0
-                    source = "GSB"
+                analysis_done = False
+            # --- END: Custom Bypass for Known Safe URL ---
+
+
+            if not analysis_done:
+                # --- Step 0: Check reachability ---
+                status = check_url_status(url)
+                if not status["reachable"]:
+                    xx = 0.0
+                    y_pred = 0 # Consider unreachable as potentially unsafe for simplicity in UI
+                    source = "Network"
                     reason_info = {
-                        "summary": "⚠️ Reported as phishing by Google Safe Browsing.",
-                        "reasons": [f"Threat type(s): {gsb_result.get('detail', 'unspecified')}"]
+                        "summary": "⚠️ Site unreachable.",
+                        "reasons": [f"Detail: {status.get('detail', 'Unknown error')}"]
                     }
-                    ai_report = "This URL is phishing because it has been reported as unsafe in Google Safe Browsing."
+                    ai_report = f"This site could not be analyzed because it’s unreachable ({status.get('detail', 'unknown reason')})."
                 else:
-                    # --- Step 2: ML model prediction ---
-                    if url_clf is None:
-                        flash("⚠️ URL ML model not loaded.", "danger")
-                        ai_report = "Unable to analyze because the ML model is not available."
+                    # --- Step 1: Google Safe Browsing ---
+                    gsb_result = check_gsb(url)
+                    if gsb_result['label'] == 'phishing':
+                        xx = 1.0
+                        y_pred = 0
+                        source = "GSB"
+                        reason_info = {
+                            "summary": "⚠️ Reported as phishing by Google Safe Browsing.",
+                            "reasons": [f"Threat type(s): {gsb_result.get('detail', 'unspecified')}"]
+                        }
+                        ai_report = "This URL is phishing because it has been reported as unsafe in Google Safe Browsing."
                     else:
-                        try:
-                            obj = FeatureExtraction(url)
-                            features = obj.getFeaturesList()
-                            X = np.array(features).reshape(1, -1)
-                            y_pred = url_clf.predict(X)[0]
-                            pro_safe = url_clf.predict_proba(X)[0, 1]
-                            xx = round(pro_safe, 2)
-                            reason_info = generate_reason(features)
+                        # --- Step 2: ML model prediction ---
+                        if url_clf is None:
+                            flash("⚠️ URL ML model not loaded.", "danger")
+                            ai_report = "Unable to analyze because the ML model is not available."
+                        else:
+                            try:
+                                obj = FeatureExtraction(url)
+                                features = obj.getFeaturesList()
+                                X = np.array(features).reshape(1, -1)
+                                y_pred = url_clf.predict(X)[0]
+                                pro_safe = url_clf.predict_proba(X)[0, 1]
+                                xx = round(pro_safe, 2)
+                                reason_info = generate_reason(features)
 
-                            # --- Step 3: Gemini AI Analysis ---
-                            prompt = (
-                                f"Analyze this URL for phishing: {url}. "
-                                f"Respond with EXACTLY ONE sentence starting with either "
-                                f"'This URL is safe because...' or 'This URL is phishing because...'."
-                            )
-                            ai_report = analyze_with_gemini(prompt)
+                                # --- Step 3: Gemini AI Analysis ---
+                                prompt = (
+                                    f"Analyze this URL for phishing: {url}. "
+                                    f"Respond with EXACTLY ONE sentence starting with either "
+                                    f"'This URL is safe because...' or 'This URL is phishing because...'."
+                                )
+                                ai_report = analyze_with_gemini(prompt)
 
-                            # --- Step 4: Override ML if Gemini says phishing ---
-                            if ai_report:
-                                ai_text = ai_report.lower()
-                                if any(word in ai_text for word in ["phishing", "malicious", "dangerous", "unsafe"]):
-                                    y_pred = 0  # Force "phishing"
-                                    xx = 0.0
-                                    source = "AI Override"
-                                    reason_info = {
-                                        "summary": "⚠️ Overridden by AI Analysis.",
-                                        "reasons": ["Gemini AI flagged this site as potentially malicious."]
-                                    }
+                                # --- Step 4: Override ML if Gemini says phishing ---
+                                if ai_report:
+                                    ai_text = ai_report.lower()
+                                    if any(word in ai_text for word in ["phishing", "malicious", "dangerous", "unsafe"]):
+                                        y_pred = 0  # Force "phishing"
+                                        xx = 0.0
+                                        source = "AI Override"
+                                        reason_info = {
+                                            "summary": "⚠️ Overridden by AI Analysis.",
+                                            "reasons": ["Gemini AI flagged this site as potentially malicious."]
+                                        }
 
-                        except Exception as e:
-                            flash(f"ML Error: {e}", "danger")
-                            y_pred = -1
-                            xx = 0.0
-                            ai_report = f"Analysis failed due to error: {e}"
-                            print(f"Prediction failed for {url}: {e}")
+                            except Exception as e:
+                                flash(f"ML Error: {e}", "danger")
+                                y_pred = -1
+                                xx = 0.0
+                                ai_report = f"Analysis failed due to error: {e}"
+                                print(f"Prediction failed for {url}: {e}")
 
-            # --- Step 5: Save result to DB ---
+            # --- Step 5: Save result to DB (runs for both bypass and full analysis) ---
             try:
+                # Ensure confidence and is_safe are valid integers/floats before saving
+                conf_to_save = float(xx) if xx != -1 else 0.0
+                safe_to_save = int(y_pred) if y_pred in (0, 1) else 0
+
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
                 cursor.execute(
                     'INSERT INTO url_history (username, url, confidence, is_safe, source) VALUES (?, ?, ?, ?, ?)',
-                    (session['user'], url, float(xx), int(y_pred) if y_pred != -1 else None, source)
+                    (session['user'], url, conf_to_save, safe_to_save, source)
                 )
                 conn.commit()
                 conn.close()
