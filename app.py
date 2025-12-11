@@ -4,6 +4,7 @@ import sqlite3
 import bcrypt
 import hashlib
 import os
+import json
 import numpy as np
 import pickle
 import warnings
@@ -153,9 +154,8 @@ except FileNotFoundError:
 
 # ---------------- GEMINI CONFIG ----------------
 # CRITICAL FIX: Removed the hardcoded key default and updated the model.
-import os
-import requests
-import json # You need this if you process JSON errors or payloads manually
+
+ # You need this if you process JSON errors or payloads manually
 
 # The endpoint and key definition remains outside the function, assuming you run 'pip install requests'
 
