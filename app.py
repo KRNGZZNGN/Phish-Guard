@@ -4,7 +4,6 @@ import sqlite3
 import bcrypt
 import hashlib
 import os
-import json
 import numpy as np
 import pickle
 import warnings
@@ -154,58 +153,18 @@ except FileNotFoundError:
 
 # ---------------- GEMINI CONFIG ----------------
 # CRITICAL FIX: Removed the hardcoded key default and updated the model.
-
- # You need this if you process JSON errors or payloads manually
-
-# The endpoint and key definition remains outside the function, assuming you run 'pip install requests'
-
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") 
-# Ensure your endpoint uses the current available model. 
-# NOTE: The model date '09-2025' in your snippet is likely a typo or future model; 
-# using a stable version like flash is safer for now. We will use your provided URL structure.
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={GEMINI_API_KEY}"
 
 def analyze_with_gemini(prompt_text):
-    if not GEMINI_API_KEY:
-        return "AI analysis unavailable: API Key is missing."
-    
     try:
         payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-        
-        # 1. Execute the request
-        response = requests.post(
-            GEMINI_ENDPOINT, 
-            headers={"Content-Type": "application/json"}, 
-            json=payload,
-            timeout=10 # Set a timeout to prevent long stalls (addressing Time Behavior)
-        )
-        
-        # 2. Check for HTTP errors (4xx or 5xx)
-        if response.status_code != 200:
-            # Log the specific error for debugging
-            print(f"Gemini API HTTP Error {response.status_code}: {response.text}")
-            return f"AI analysis failed (Code: {response.status_code}). Check API Key or endpoint."
-
+        response = requests.post(GEMINI_ENDPOINT, headers={"Content-Type": "application/json"}, json=payload)
         data = response.json()
-        
-        # 3. Check for malformed response or missing content
-        if "candidates" not in data or not data["candidates"]:
-            print(f"Gemini API Response Error: {data}")
-            return "AI analysis failed: Malformed response from service."
-
-        # Return the generated text
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        
-    except requests.exceptions.Timeout:
-        print("Gemini API Error: Request timed out.")
-        return "AI analysis unavailable: Request timed out (Performance Issue)."
-    except requests.exceptions.ConnectionError as e:
-        print(f"Gemini API Error: Connection failure. {e}")
-        return "AI analysis unavailable: Network or Connection Error."
     except Exception as e:
-        # Catch any other unforeseen error (e.g., JSON parsing failure)
-        print(f"Gemini API Unknown Error: {e}")
-        return "AI analysis unavailable due to unknown error."
+        print(f"Gemini API error: {e}")
+        return "AI analysis unavailable at this time."
 
 # ---------------- REACHABILITY CHECK ----------------
 def check_url_status(url, timeout=6):
@@ -449,3 +408,4 @@ def phishmail():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
