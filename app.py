@@ -249,6 +249,22 @@ def home():
                             pro_safe = url_clf.predict_proba(X)[0, 1]
                             xx = round(pro_safe, 2)
                             reason_info = generate_reason(features)
+                            
+
+                            # --- SAVE FEATURES TO CSV ---
+                            csv_file = "url_features_dataset.csv"
+
+                            # Create file with header if not existing
+                            if not os.path.exists(csv_file):
+                                with open(csv_file, "w", newline="") as f:
+                                    writer = csv.writer(f)
+                                    header = [f"f{i+1}" for i in range(len(features))] + ["label", "url"]
+                                    writer.writerow(header)
+
+                            # Append feature row
+                            with open(csv_file, "a", newline="") as f:
+                                writer = csv.writer(f)
+                                writer.writerow(features + [int(y_pred), url])
 
                             # --- Step 3: Gemini AI Analysis ---
                             prompt = (
