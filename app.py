@@ -21,17 +21,30 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your_flask_secret_key')
 
 # ---------------- GOOGLE LOGIN (OAuth) ----------------
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
 google_bp = make_google_blueprint(
-    client_id=os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '864440386085-bfogmij6ipnvrghpsvf0ahfuuhdfnu9u.apps.googleusercontent.com'),
-    client_secret=os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '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'),
+
+    client_id=os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '974006956315-c1bnin4alqqqs6ot1ue5m1bk3r07qn3s.apps.googleusercontent.com'),
+
+    client_secret=os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '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'),
+
     scope=[
+
         "openid",
+
         "https://www.googleapis.com/auth/userinfo.profile",
+
         "https://www.googleapis.com/auth/userinfo.email"
+
     ],
+
     redirect_url="/google_login"
+
 )
+
 app.register_blueprint(google_bp, url_prefix="/login")
+
+
 
 # ---------------- DATABASE SETUP ----------------
 DB_FILE = 'users.db'
@@ -82,10 +95,14 @@ def get_user_by_email(email):
     return user
 
 def create_user(email, password):
+    password = password[:50]  
+
     salt_for_secret = generate_random_salt()
     hashed_secret = hash_secret_with_salt(SECRET_PEPPER, salt_for_secret)
     hashed_secret2 = bcrypt.hashpw(hashed_secret.encode('utf-8'), bcrypt.gensalt())
-    combined_password = password + hashed_secret2.decode('utf-8')
+
+    combined_password = (password + hashed_secret2.decode('utf-8'))[:70]
+
     final_hashed_password = bcrypt.hashpw(combined_password.encode('utf-8'), bcrypt.gensalt())
 
     conn = sqlite3.connect(DB_FILE)
@@ -101,6 +118,7 @@ def create_user(email, password):
         return False
     finally:
         conn.close()
+
 
 def validate_login(email, password):
     user = get_user_by_email(email)
@@ -134,8 +152,9 @@ except FileNotFoundError:
 #     email_clf, email_vect, url_clf = None, None, None
 
 # ---------------- GEMINI CONFIG ----------------
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBRyaP3ekJ7Wd9SqkQEY5yxXPygaZj6uXM")
-GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+# CRITICAL FIX: Removed the hardcoded key default and updated the model.
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") 
+GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={GEMINI_API_KEY}"
 
 def analyze_with_gemini(prompt_text):
     try:
@@ -230,6 +249,22 @@ def home():
                             pro_safe = url_clf.predict_proba(X)[0, 1]
                             xx = round(pro_safe, 2)
                             reason_info = generate_reason(features)
+                            
+
+                            # --- SAVE FEATURES TO CSV ---
+                            csv_file = "url_features_dataset.csv"
+
+                            # Create file with header if not existing
+                            if not os.path.exists(csv_file):
+                                with open(csv_file, "w", newline="") as f:
+                                    writer = csv.writer(f)
+                                    header = [f"f{i+1}" for i in range(len(features))] + ["label", "url"]
+                                    writer.writerow(header)
+
+                            # Append feature row
+                            with open(csv_file, "a", newline="") as f:
+                                writer = csv.writer(f)
+                                writer.writerow(features + [int(y_pred), url])
 
                             # --- Step 3: Gemini AI Analysis ---
                             prompt = (
@@ -362,18 +397,23 @@ def logout():
 def google_login():
     if not google.authorized:
         return redirect(url_for('google.login'))
+
     resp = google.get("/oauth2/v2/userinfo")
     if not resp.ok:
         flash("Google login failed.", "danger")
         return redirect(url_for('auth'))
+
     user_info = resp.json()
     email = user_info.get("email").lower()
+
     if not get_user_by_email(email):
-        dummy_pass = bcrypt.gensalt().decode('utf-8')
+        dummy_pass = "google_oauth_user"
         create_user(email, dummy_pass)
+
     session['user'] = email
     flash(f"Logged in as {email} via Google.", "success")
     return redirect(url_for('home'))
+
 
 @app.route('/phishmail')
 def phishmail():
@@ -384,3 +424,4 @@ def phishmail():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
